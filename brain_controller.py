@@ -4,34 +4,12 @@ import time
 import joblib
 import torch
 import pygame  # New import for event processing
-
+from lstm_classifier import DEVICE, SEQUENCE_LENGTH, EEGLSTMClassifier
 from mindwave_connection import MindwaveConnection  # For EEG headset connection
 from snake_game import SnakeGame  # Assuming a SnakeGame implementation exists
+import numpy as np
 
-# Locate the latest saved model and scaler in models/
-MODELS_DIR = os.path.join("models")
-model_files = glob.glob(os.path.join(MODELS_DIR, "eeg_lstm_final_*.pth"))
-scaler_files = glob.glob(os.path.join(MODELS_DIR, "eeg_scaler_*.pkl"))
-
-if not model_files or not scaler_files:
-    raise ValueError("No model or scaler found in the models directory.")
-
-latest_model = max(model_files, key=os.path.getctime)
-latest_scaler = max(scaler_files, key=os.path.getctime)
-print(f"Loading model: {latest_model}")
-print(f"Loading scaler: {latest_scaler}")
-
-# Load scaler
-scaler = joblib.load(latest_scaler)
-
-# Instantiate the real-time classifier with the latest model and scaler
-rt_classifier = RealTimeEEGClassifier(model_path=latest_model, scaler=scaler)
-
-# Initialize EEG connection (using same COM port as in data_recorder)
-COM_PORT = "COM4"  # Modify if necessary
-headset_connection = MindwaveConnection(COM_PORT)
-if not headset_connection.connect():
-    raise ConnectionError("Failed to connect to the EEG headset.")
+CONFIDENCE_THRESHOLD = 0.7
 
 class RealTimeEEGClassifier:
     """
@@ -46,7 +24,7 @@ class RealTimeEEGClassifier:
         -----------
         model_path : str
             Path to the trained model
-        scaler : sklearn.preprocessing.StandardScaler
+        scaler : sklearn.preprocessing.RobustScaler
             Fitted scaler for normalizing data
         seq_length : int
             Sequence length expected by the model
@@ -161,6 +139,33 @@ class RealTimeEEGClassifier:
         """Reset the data buffer."""
         self.data_buffer = []
 
+
+# Locate the latest saved model and scaler in models/
+MODELS_DIR = os.path.join("models")
+model_files = glob.glob(os.path.join(MODELS_DIR, "eeg_lstm_final_*.pth"))
+scaler_files = glob.glob(os.path.join(MODELS_DIR, "eeg_scaler_*.pkl"))
+
+if not model_files or not scaler_files:
+    raise ValueError("No model or scaler found in the models directory.")
+
+latest_model = max(model_files, key=os.path.getctime)
+latest_scaler = max(scaler_files, key=os.path.getctime)
+print(f"Loading model: {latest_model}")
+print(f"Loading scaler: {latest_scaler}")
+
+# Load scaler
+scaler = joblib.load(latest_scaler)
+
+# Instantiate the real-time classifier with the latest model and scaler
+rt_classifier = RealTimeEEGClassifier(model_path=latest_model, scaler=scaler)
+
+# Initialize EEG connection (using same COM port as in data_recorder)
+COM_PORT = "COM4"  # Modify if necessary
+headset_connection = MindwaveConnection(COM_PORT)
+if not headset_connection.connect():
+    raise ConnectionError("Failed to connect to the EEG headset.")
+
+
 # Initialize the game instance (assuming a SnakeGame with a similar API)
 game = SnakeGame()
 
@@ -193,16 +198,20 @@ try:
         predicted_direction, probabilities = rt_classifier.predict(attention, meditation, raw_eeg)
         
         if predicted_direction is not None:
-            print(f"Predicted direction: {predicted_direction} | Probabilities: {probabilities}")
-            # Map prediction to game controls
-            if predicted_direction.upper() == "UP":
-                up = True
-            elif predicted_direction.upper() == "DOWN":
-                down = True
-            elif predicted_direction.upper() == "LEFT":
-                left = True
-            elif predicted_direction.upper() == "RIGHT":
-                right = True
+            max_confidence = np.max(probabilities)
+            if max_confidence >= CONFIDENCE_THRESHOLD:
+                print(f"Predicted direction: {predicted_direction} | Confidence: {max_confidence:.4f}")
+                # Map prediction to game controls
+                if predicted_direction.upper() == "UP":
+                    up = True
+                elif predicted_direction.upper() == "DOWN":
+                    down = True
+                elif predicted_direction.upper() == "LEFT":
+                    left = True
+                elif predicted_direction.upper() == "RIGHT":
+                    right = True
+            else:
+                print(f"Low confidence prediction ignored: {predicted_direction} | Confidence: {max_confidence:.4f} < {CONFIDENCE_THRESHOLD}")
         
         # Update the game with predicted controls
         game_over = game.next_frame(up, down, left, right)

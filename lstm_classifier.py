@@ -6,19 +6,19 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import RobustScaler
 import matplotlib.pyplot as plt
 from datetime import datetime
 
 # Configuration Constants
 RECORDINGS_DIR = "recordings"
 MODELS_DIR = "models"
-SEQUENCE_LENGTH = 50  # Number of time steps in each sequence
+SEQUENCE_LENGTH = 200  # Number of time steps in each sequence
 HIDDEN_SIZE = 128  # Number of features in LSTM hidden state
 NUM_LAYERS = 2  # Number of stacked LSTM layers
-BATCH_SIZE = 512
-LEARNING_RATE = 0.001
-EPOCHS = 25
+BATCH_SIZE = 256
+LEARNING_RATE = 0.002
+EPOCHS = 30
 TEST_SPLIT = 0.2  # Percentage of data for testing
 VAL_SPLIT = 0.2  # Percentage of training data for validation
 DROPOUT = 0.2  # Dropout probability
@@ -27,7 +27,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 RANDOM_SEED = 42  # For reproducibility
 SAVE_MODEL = True  # Whether to save the trained model
 EARLY_STOPPING = True  # Whether to use early stopping
-PATIENCE = 10  # Number of epochs with no improvement after which training will stop
+PATIENCE = 7  # Number of epochs with no improvement after which training will stop
 INPUT_SIZE = 3  # Number of features (attention, meditation, raw_eeg)
 OUTPUT_SIZE = 4  # Number of classes (UP, DOWN, LEFT, RIGHT)
 
@@ -49,7 +49,7 @@ def load_and_preprocess_data():
         Input features normalized
     y : numpy.ndarray
         Target labels as one-hot encoded vectors
-    scaler : sklearn.preprocessing.StandardScaler
+    scaler : sklearn.preprocessing.RobustScaler
         Fitted scaler for normalizing new data
     """
     print("Loading and preprocessing data...")
@@ -84,13 +84,35 @@ def load_and_preprocess_data():
     print("Direction counts:")
     print(direction_counts)
     
+    # Print statistics about the features
+    print("\nData statistics for features:")
+    for feature in ['attention', 'meditation', 'raw_eeg']:
+        print(f"\n{feature.upper()}:")
+        print(f"Min: {data[feature].min()}")
+        print(f"Max: {data[feature].max()}")
+        print(f"Mean: {data[feature].mean()}")
+        print(f"Median: {data[feature].median()}")
+        print(f"Standard Deviation: {data[feature].std()}")
+        print(f"25th Percentile: {data[feature].quantile(0.25)}")
+        print(f"75th Percentile: {data[feature].quantile(0.75)}")
+    
     # Extract features and target
     X = data[['attention', 'meditation', 'raw_eeg']].values
     y = data['direction_label'].values
     
-    # Normalize features
-    scaler = StandardScaler()
+    # Normalize features with RobustScaler
+    scaler = RobustScaler()
     X = scaler.fit_transform(X)
+    
+    # Print statistics after normalization
+    print("\nData statistics after robust normalization:")
+    feature_names = ['attention', 'meditation', 'raw_eeg']
+    for i in range(X.shape[1]):
+        print(f"\n{feature_names[i].upper()}:")
+        print(f"Min: {X[:, i].min()}")
+        print(f"Max: {X[:, i].max()}")
+        print(f"Mean: {X[:, i].mean()}")
+        print(f"Standard Deviation: {X[:, i].std()}")
     
     # One-hot encode the target
     y_one_hot = np.zeros((len(y), OUTPUT_SIZE))
