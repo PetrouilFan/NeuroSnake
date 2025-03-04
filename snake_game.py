@@ -5,7 +5,7 @@ import time
 import argparse
 
 # Game constants
-FRAME_RATE = 8
+FRAME_RATE = 4
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 600
 GRID_SIZE = 20
@@ -31,6 +31,13 @@ class SnakeGame:
         self.clock = pygame.time.Clock()
         self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
         pygame.display.set_caption('NeuroSnake')
+        
+        # Store key configurations for external access
+        self.KEY_UP = KEY_UP
+        self.KEY_DOWN = KEY_DOWN
+        self.KEY_LEFT = KEY_LEFT
+        self.KEY_RIGHT = KEY_RIGHT
+        self.FRAME_RATE = FRAME_RATE
         
         self.record_mode = record_mode
         self.reset_game()
